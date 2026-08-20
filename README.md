@@ -1,5 +1,4 @@
 
-
 ## ✨ Features
 - **Supports Both Photos and Videos**: Works with `.jpg`, `.jpeg`, `.png`, `.webp` images and `.mp4`, `.mov`, `.mkv`, `.avi` videos.
 
@@ -25,16 +24,20 @@ The script uses FFmpeg to preserve the original audio in videos.
 
 ## 🚀 How to Use
 
-### 📝 1. Set Your Timestamp & Text
-Open `script.py` in your favorite editor and customize the following variables at the top:
+### 📝 1. Set Your Timestamp, Gaps & Text
+Open `script.py` in your favorite editor and customize the configuration variables at the top:
 
-- **`START_TIMESTAMP`**: The time shown on the image, or the starting time for videos. 
-  - Format: `"17 Aug 2026 13:02:31"` or `"13:02:31"`
-- **`STATIC_TEXT_LINES`**: Your static metadata (like GPS, Speed, or Location). If you want the text to appear in multiple lines on the image/video, simply write them as multiple strings in the list.
+- **`BASE_START_TIMESTAMP`**: The starting timestamp for the **first** file in your batch. 
+  - Format: `"17 Aug 2026 13:02:31"` or `"12:32:08"`
+- **`MIN_GAP_SECONDS`** & **`MAX_GAP_SECONDS`**: The random time gap range (in seconds) added between consecutive files in the batch (default: `60` to `180` seconds).
+- **`STATIC_TEXT_LINES`**: Your static metadata (like GPS, Speed, or Location). If you want the text to appear in multiple lines on the image/video, write them as multiple strings in the list.
 
 **Example:**
 ```python
-START_TIMESTAMP = "24 Aug 2026 14:30:00"
+BASE_START_TIMESTAMP = "24 Aug 2026 14:30:00"
+
+MIN_GAP_SECONDS = 60   # Minimum gap (e.g. 1 minute)
+MAX_GAP_SECONDS = 180  # Maximum gap (e.g. 3 minutes)
 
 STATIC_TEXT_LINES = [
     "📍 New York City",
@@ -47,10 +50,11 @@ STATIC_TEXT_LINES = [
 Place all the photos and videos you want to process inside the `input` folder. 
 
 ### ▶️ 3. Run the Script
-Open your terminal or command prompt and run the magic command:
+Open your terminal or command prompt and run the command:
 ```bash
 python script.py
 ```
 
 ### 🎉 4. Boom!
-Check the `output` folder! All your processed media with perfectly aligned text and original audio will be waiting for you. 
+Check the `output` folder! All your processed media with perfectly aligned timestamps (incremented per file), custom text, and original audio will be waiting for you.
+
