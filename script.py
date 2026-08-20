@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import shutil
 import numpy as np
+import random
 
 
 # ============================================================
@@ -17,26 +18,44 @@ OUTPUT_FOLDER = Path("output")
 
 
 # ============================================================
-# TIMESTAMP
+# BASE STARTING TIMESTAMP
 # ============================================================
 
-# Timestamp shown on:
-# - Images
-# - First frame of videos
+# The FIRST file will always start from this time.
 #
 # Supported:
 # "17 Aug 2026 13:02:31"
-# OR
-# "01:23:34"
+#
+# OR:
+# "12:32:08"
 
-START_TIMESTAMP = "17 Aug 2026 13:02:31"
+BASE_START_TIMESTAMP = "12:32:08"
+
+
+# ============================================================
+# TIME GAP BETWEEN FILES
+# ============================================================
+
+# Every next file gets a random gap between:
+#
+# MIN_GAP = 1 minute
+# MAX_GAP = 3 minutes
+#
+# Examples:
+# 1:20
+# 2:02
+# 2:47
+# 1:05
+#
+# The gap is randomly generated for EVERY next file.
+
+MIN_GAP_SECONDS = 60
+MAX_GAP_SECONDS = 180
 
 
 # ============================================================
 # STATIC TEXT
 # ============================================================
-
-# These lines remain unchanged.
 
 STATIC_TEXT_LINES = [
     "27°51'48\"N 79°55'55\"E",
@@ -57,7 +76,6 @@ BASE_FONT_SIZE = 60
 
 LINE_SPACING = 8
 
-# Change both to 0 for absolutely no intended margin.
 RIGHT_MARGIN = 10
 BOTTOM_MARGIN = 10
 
@@ -118,10 +136,10 @@ def parse_start_timestamp(timestamp):
         except ValueError:
 
             raise ValueError(
-                "START_TIMESTAMP must be either:\n"
+                "BASE_START_TIMESTAMP must be either:\n"
                 '"17 Aug 2026 13:02:31"\n'
                 "or\n"
-                '"01:23:34"'
+                '"12:32:08"'
             )
 
 
@@ -145,31 +163,26 @@ def get_font(image_width):
 
 
 # ============================================================
-# GENERATE TIMESTAMP
+# GENERATE TIMESTAMP TEXT
 # ============================================================
 
-def get_timestamp(
-    start_datetime,
-    timestamp_type,
-    elapsed_seconds
+def format_timestamp(
+    timestamp
 ):
 
-    elapsed = timedelta(
-        seconds=elapsed_seconds
-    )
-
-    current_time = (
-        start_datetime
-        + elapsed
+    timestamp_type = (
+        "datetime"
+        if timestamp.year != 1900
+        else "time"
     )
 
     if timestamp_type == "datetime":
 
-        return current_time.strftime(
+        return timestamp.strftime(
             "%d %b %Y %H:%M:%S"
         )
 
-    return current_time.strftime(
+    return timestamp.strftime(
         "%H:%M:%S"
     )
 
@@ -178,7 +191,9 @@ def get_timestamp(
 # BUILD TEXT LINES
 # ============================================================
 
-def build_text_lines(timestamp_text):
+def build_text_lines(
+    timestamp_text
+):
 
     return [
         timestamp_text
@@ -186,7 +201,7 @@ def build_text_lines(timestamp_text):
 
 
 # ============================================================
-# DRAW TEXT ON PIL IMAGE
+# DRAW TEXT
 # ============================================================
 
 def draw_text_on_image(
@@ -205,7 +220,7 @@ def draw_text_on_image(
     )
 
     # --------------------------------------------------------
-    # Calculate text dimensions
+    # Calculate dimensions
     # --------------------------------------------------------
 
     line_data = []
@@ -244,7 +259,7 @@ def draw_text_on_image(
     )
 
     # --------------------------------------------------------
-    # Bottom position
+    # Starting Y
     # --------------------------------------------------------
 
     y = (
@@ -254,7 +269,7 @@ def draw_text_on_image(
     )
 
     # --------------------------------------------------------
-    # Draw lines
+    # Draw
     # --------------------------------------------------------
 
     for (
@@ -306,7 +321,8 @@ def draw_text_on_image(
 
 def process_image(
     input_path,
-    output_path
+    output_path,
+    start_timestamp
 ):
 
     print(
@@ -314,29 +330,23 @@ def process_image(
         f"{input_path.name}"
     )
 
-    start_datetime, timestamp_type = (
-        parse_start_timestamp(
-            START_TIMESTAMP
-        )
+    timestamp_text = format_timestamp(
+        start_timestamp
     )
 
-    # Image timestamp does not change.
-    timestamp_text = get_timestamp(
-        start_datetime,
-        timestamp_type,
-        0
+    print(
+        f"Starting timestamp: "
+        f"{timestamp_text}"
     )
 
     image = Image.open(
         input_path
     )
 
-    # Apply EXIF orientation
     image = ImageOps.exif_transpose(
         image
     )
 
-    # Convert modes when necessary
     if image.mode not in (
         "RGB",
         "RGBA"
@@ -351,7 +361,7 @@ def process_image(
         timestamp_text
     )
 
-    # JPEG doesn't support RGBA
+    # JPEG does not support RGBA
     if (
         output_path.suffix.lower()
         in {".jpg", ".jpeg"}
@@ -391,7 +401,8 @@ def process_image(
 
 def process_video(
     input_path,
-    output_path
+    output_path,
+    start_timestamp
 ):
 
     print(
@@ -399,10 +410,9 @@ def process_video(
         f"{input_path.name}"
     )
 
-    start_datetime, timestamp_type = (
-        parse_start_timestamp(
-            START_TIMESTAMP
-        )
+    print(
+        f"Starting timestamp: "
+        f"{format_timestamp(start_timestamp)}"
     )
 
     # --------------------------------------------------------
@@ -466,11 +476,6 @@ def process_video(
         f"{duration:.2f}s"
     )
 
-    print(
-        f"Starting timestamp: "
-        f"{START_TIMESTAMP}"
-    )
-
     # --------------------------------------------------------
     # Temporary directory
     # --------------------------------------------------------
@@ -530,19 +535,25 @@ def process_video(
 
             break
 
-        # Actual video elapsed time
+        # Video elapsed time
         elapsed_seconds = (
             frame_number / fps
         )
 
-        # Dynamic timestamp
-        timestamp_text = get_timestamp(
-            start_datetime,
-            timestamp_type,
-            elapsed_seconds
+        # Starting timestamp +
+        # video elapsed time
+        current_timestamp = (
+            start_timestamp
+            + timedelta(
+                seconds=elapsed_seconds
+            )
         )
 
-        # OpenCV BGR -> RGB
+        timestamp_text = format_timestamp(
+            current_timestamp
+        )
+
+        # BGR -> RGB
         frame_rgb = cv2.cvtColor(
             frame,
             cv2.COLOR_BGR2RGB
@@ -612,15 +623,13 @@ def process_video(
         "ffmpeg",
         "-y",
 
-        # Processed video
         "-i",
         str(temp_video),
 
-        # Original video/audio
         "-i",
         str(input_path),
 
-        # Processed video stream
+        # Processed video
         "-map",
         "0:v:0",
 
@@ -628,26 +637,21 @@ def process_video(
         "-map",
         "1:a?",
 
-        # Video codec
         "-c:v",
         "libx264",
 
-        # Quality
         "-crf",
         "18",
 
-        # Encoding speed
         "-preset",
         "medium",
 
-        # Audio
         "-c:a",
         "aac",
 
         "-b:a",
         "192k",
 
-        # Match shortest stream
         "-shortest",
 
         str(output_path)
@@ -702,7 +706,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # Find EVERYTHING in input folder
+    # Find all files
     # --------------------------------------------------------
 
     files = [
@@ -725,7 +729,21 @@ def main():
     )
 
     # --------------------------------------------------------
-    # Process files one by one
+    # Base timestamp
+    # --------------------------------------------------------
+
+    current_timestamp, _ = (
+        parse_start_timestamp(
+            BASE_START_TIMESTAMP
+        )
+    )
+
+    print(
+        "\nTimestamp schedule:"
+    )
+
+    # --------------------------------------------------------
+    # Process files
     # --------------------------------------------------------
 
     processed_count = 0
@@ -740,17 +758,23 @@ def main():
             file_path.suffix.lower()
         )
 
+        output_path = (
+            OUTPUT_FOLDER
+            / file_path.name
+        )
+
         print(
             f"\n[{index}/{len(files)}] "
             f"{file_path.name}"
         )
 
-        try:
+        # Show assigned timestamp
+        print(
+            f"Assigned start time: "
+            f"{format_timestamp(current_timestamp)}"
+        )
 
-            output_path = (
-                OUTPUT_FOLDER
-                / file_path.name
-            )
+        try:
 
             # ------------------------------------------------
             # IMAGE
@@ -760,7 +784,8 @@ def main():
 
                 process_image(
                     file_path,
-                    output_path
+                    output_path,
+                    current_timestamp
                 )
 
                 processed_count += 1
@@ -773,7 +798,8 @@ def main():
 
                 process_video(
                     file_path,
-                    output_path
+                    output_path,
+                    current_timestamp
                 )
 
                 processed_count += 1
@@ -791,11 +817,37 @@ def main():
 
                 skipped_count += 1
 
+                # Do NOT advance timestamp
+                continue
+
         except Exception as e:
 
             print(
                 f"ERROR: {e}"
             )
+
+            # Do not advance timestamp
+            # when processing fails.
+            continue
+
+        # ----------------------------------------------------
+        # Generate random gap for NEXT file
+        # ----------------------------------------------------
+
+        gap_seconds = random.randint(
+            MIN_GAP_SECONDS,
+            MAX_GAP_SECONDS
+        )
+
+        current_timestamp += timedelta(
+            seconds=gap_seconds
+        )
+
+        print(
+            f"Next file gap: "
+            f"{gap_seconds // 60}m "
+            f"{gap_seconds % 60}s"
+        )
 
     # --------------------------------------------------------
     # Summary
